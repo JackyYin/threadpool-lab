@@ -35,7 +35,7 @@ queue_t* queue_create(int tasks_capacity)
     return q;
 }
 
-void queue_push(queue_t* q, void *ele)
+bool queue_push(queue_t* q, void *ele)
 {
     int new_tail = (q->tail + 1) % q->tasks_capacity;
 
@@ -45,6 +45,7 @@ void queue_push(queue_t* q, void *ele)
     q->buf[q->tail] = ele;
     q->tail = new_tail;
     q->tasks_nums++;
+    return true;
 }
 
 void* queue_pop(queue_t* q)
