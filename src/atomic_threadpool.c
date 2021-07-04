@@ -15,7 +15,6 @@ struct threadpool_t {
     int               thread_nums;
     queue_t           *task_queue;
     pthread_t         *threads;
-    pthread_mutex_t   lock;
 };
 
 int threadpool_free(threadpool_t *pool);
@@ -25,10 +24,6 @@ void* threadpool_function (void *argument)
     threadpool_t *pool = (threadpool_t *)argument;
 
     while (1) {
-        /* while (queue_empty(pool->task_queue) && !pool->shutdown) { */
-        /*     pthread_cond_wait(&pool->task_existence, &pool->lock); */
-        /* } */
-
         if (pool->shutdown) {
             break;
         }
@@ -42,10 +37,12 @@ void* threadpool_function (void *argument)
 
         // receive final task
         if (!task->function) {
+            free(task);
             break;
         }
 
         (*(task->function))(task->arguments);
+        free(task);
     }
 
     pthread_exit(NULL);
@@ -68,7 +65,6 @@ threadpool_t* threadpool_create (int thread_nums, int tasks_capacity)
     pool->task_queue = queue_create(tasks_capacity);
 
     if (
-        (pthread_mutex_init(&pool->lock, NULL) != 0) ||
         (pool->task_queue == NULL) ||
         (pool->threads == NULL)
     ) {
@@ -77,7 +73,6 @@ threadpool_t* threadpool_create (int thread_nums, int tasks_capacity)
 
     for (int i = 0; i < thread_nums; i++) {
         if ((pthread_create(&pool->threads[i], NULL, threadpool_function, (void *)pool)) != 0) {
-            threadpool_destroy(pool);
             goto err;
         }
 
@@ -86,12 +81,7 @@ threadpool_t* threadpool_create (int thread_nums, int tasks_capacity)
     return pool;
 
 err:
-    if (pool) {
-        pthread_mutex_destroy(&pool->lock);
-        queue_destroy(pool->task_queue);
-        free(pool->threads);
-        free(pool);
-    }
+    threadpool_destroy(pool);
     return NULL;
 }
 
@@ -128,16 +118,13 @@ int threadpool_push (threadpool_t *pool, void (*func)(void*), void *args)
 
 int threadpool_destroy (threadpool_t *pool)
 {
-    pthread_mutex_lock(&pool->lock);
-
     pool->shutdown = 1;
 
-    pthread_mutex_unlock(&pool->lock);
-
-    for (int i = 0; i < pool->thread_nums; i++) {
-        pthread_join(pool->threads[i], NULL);
+    if (pool) {
+        queue_destroy(pool->task_queue);
+        free(pool->threads);
+        free(pool);
     }
-
     return 0;
 }
 
@@ -149,4 +136,6 @@ void threadpool_wait (threadpool_t *pool)
     for (int i = 0; i < pool->thread_nums; i++) {
         pthread_join(pool->threads[i], NULL);
     }
+
+    threadpool_destroy(pool);
 }
