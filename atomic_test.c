@@ -12,7 +12,6 @@ typedef struct {
     double res;
 } bpp_t;
 
-
 static void simple_func(void *arg)
 {
     int n = *(int *) arg;
@@ -30,40 +29,12 @@ static void bpp_func(void *arg)
     bpp->res = 1 / pow(16, k) * sum;
 }
 
-static void fibonacci_func(void *arg)
-{
-    int n = *(int *) arg;
-
-    long next;
-    do {
-        if (n == 0) {
-            next = 0;
-            break;
-        }
-        if (n == 1) {
-            next = 1;
-            break;
-        }
-
-        long prev = 0;
-        long cur = 1;
-
-        for (int i = 2; i <= n; i++) {
-            next = prev + cur;
-            prev = cur;
-            cur = next;
-        }
-    } while (0);
-
-    printf("f(%d): %lu\n", n, next);
-}
-
 int main () {
     struct timespec tt1, tt2;
     clock_gettime(CLOCK_REALTIME, &tt1);
 
     int qSize = 0x10000;
-
+    // queue size must be 2^n
     threadpool_t *pool = threadpool_create(0x04, qSize);
 
     printf("pool created...\n");
@@ -86,7 +57,7 @@ int main () {
     threadpool_wait(pool);
 
     clock_gettime(CLOCK_REALTIME, &tt2);
-    printf("tp consumes %ld nanoseconds!\n", tt2.tv_nsec - tt1.tv_nsec);
+    printf("tp consumes %lu nanoseconds!\n", tt2.tv_nsec - tt1.tv_nsec);
 
     /* double sum = 0; */
     /* for (int i = 0; i <= PRECISION; i++) { */
