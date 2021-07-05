@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <math.h>
 #include <time.h>
+#include <stdlib.h>
 #include "threadpool.h"
 
 #define PRECISION 1000 /* upper bound in BPP sum */
@@ -17,7 +18,7 @@ static void simple_func(void *arg)
 {
     int n = *(int *) arg;
 
-    printf("processing : %d\n", n);
+    //printf("processing : %d\n", n);
 }
 
 /* Use Bailey–Borwein–Plouffe formula to approximate PI */
@@ -58,13 +59,16 @@ static void fibonacci_func(void *arg)
     printf("f(%d): %lu\n", n, next);
 }
 
-int main () {
+int main (int argc, char **argv) {
     struct timespec tt1, tt2;
     clock_gettime(CLOCK_REALTIME, &tt1);
 
-    int qSize = 0x10000;
+    int nThreads = argc > 1 ? abs(atoi(argv[1])) : sysconf(_SC_NPROCESSORS_ONLN);
+    int qSize = 0x100000;
 
-    threadpool_t *pool = threadpool_create(0x04, qSize);
+    printf("creating pool with %d threads and queue size %d...\n", nThreads, qSize);
+
+    threadpool_t *pool = threadpool_create(nThreads, qSize);
 
     printf("pool created...\n");
 

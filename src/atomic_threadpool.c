@@ -1,7 +1,9 @@
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <sched.h>
 #include "threadpool.h"
 #include "queue.h"
 
@@ -76,7 +78,14 @@ threadpool_t* threadpool_create (int thread_nums, int tasks_capacity)
             goto err;
         }
 
-        printf("pthread num %d created...\n", i);
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(i, &cpuset);
+        if ((pthread_setaffinity_np(pool->threads[i], sizeof(cpuset), &cpuset)) != 0) {
+            goto err;
+        }
+
+        printf("pthread number %d created in core %d...\n", i, i);
     }
     return pool;
 
