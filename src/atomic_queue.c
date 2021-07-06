@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 #include <stdint.h>
+#include <stdio.h>
 #include "queue.h"
 
 struct queue_t {
@@ -33,20 +34,29 @@ queue_t* queue_create(int task_capacity)
     return q;
 }
 
-// we can only allow single producer
+// we can support multiple producers
 bool queue_push(queue_t* q, void *ele)
 {
-    uint32_t last_head = atomic_load(&q->head);
-    uint32_t last_tail = atomic_load(&q->tail);
-    uint32_t new_tail = (last_tail + 1) & (q->task_capacity - 1);
+    do {
+        uint32_t last_head = atomic_load(&q->head);
+        uint32_t last_tail = atomic_load(&q->tail);
+        uint32_t new_tail = (last_tail + 1) & (q->task_capacity - 1);
 
-    if (new_tail == last_head)
-        return false;
+        if (new_tail == last_head)
+            return false;
 
-    q->buf[last_tail] = ele;
-    atomic_store_explicit(&q->tail, new_tail, memory_order_release);
-
-    return true;
+        // point to NULL before we move on,
+        // becasue we don't want to cause seg fault after moving tail,
+        // there should be no memory leakage becasue buffer should be freed
+        q->buf[last_tail] = NULL;
+        if (atomic_compare_exchange_weak(&q->tail, &last_tail, new_tail)) {
+            // if buffer is immediately comsumed here,
+            // it will get NULL pointer
+            if (__sync_bool_compare_and_swap(&q->buf[last_tail], NULL, ele)) {
+                return true;
+            }
+        }
+    } while (1);
 }
 
 // we can have multiple consumers
@@ -59,10 +69,17 @@ void* queue_pop(queue_t* q)
         last_tail = atomic_load(&q->tail);
         new_head = (last_head + 1) & (q->task_capacity - 1);
 
-        if (last_head == last_tail)
+        if (last_head == last_tail) {
+            //printf("queue_pop: queue is empty\n");
             return NULL;
+        }
 
-        res = q->buf[last_head];
+        // don't forward head if we get NULL pointer,
+        // this means we are getting element before queue_push complete
+        if ((res = q->buf[last_head]) == NULL) {
+            printf("get NULL pointer when pop\n");
+            continue;
+        }
     } while (!atomic_compare_exchange_weak(&q->head, &last_head, new_head));
 
     return res;
